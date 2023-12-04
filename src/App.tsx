@@ -26,6 +26,9 @@ function App() {
         name: string;
         status: string;
         species: string;
+        origin: {
+            name: string;
+        };
     }
 
     interface RickAndMortyResponse {
