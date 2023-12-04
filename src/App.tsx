@@ -47,6 +47,22 @@ function App() {
             .then((aliveCharacters) => setRickAndMortyResponse(aliveCharacters));
     }, []);
 
+    const getLivingHumans = (characters: Character[]): Character[] => {
+        return characters.filter((character) => character.status === 'Alive' && character.species === 'Human');
+    }
+
+    console.log(getLivingHumans(rickAndMortyResponse));
+
+    const getSpecialObjects = (characters: Character[]): { name: string, origin: string }[] => {
+        return characters.map((character) => ({
+            name: character.name,
+            origin: character.origin.name,
+        }));
+    }
+
+    console.log(getSpecialObjects(rickAndMortyResponse));
+
+
     return (
         <>
             <h1>{doubleNumbers}</h1>
