@@ -1,70 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import './App.css'
+import { useEffect, useState, useMemo } from 'react';
+import './App.css';
+
+interface Character {
+    id: number;
+    name: string;
+    status: string;
+    species: string;
+}
 
 function App() {
-
-    const numbers:number[] = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
-
-    const doubleNumbers:number[] = numbers.map((number:number):number => number * 2);
-    console.log(doubleNumbers);
-
-    const words:string[] = ['hello', 'world', 'foo', 'bar', 'foobar', 'fizz', 'buzz', 'fizzbuzz'];
-
-    const newWords:string[] = words.filter((word:string):boolean => word.length > 5);
-
-    const sumOfNumbers:number = numbers.reduce((acc:number, curr:number):number => acc + curr, 0);
-
-    const firstNumberGreaterThenTen:number | undefined = numbers.find((number:number):boolean => number > 10);
-
-    console.log(firstNumberGreaterThenTen);
-
-
-    // RickAndMorty API filter who is alive
-
-    interface Character {
-        id: number;
-        name: string;
-        status: string;
-        species: string;
-        origin: {
-            name: string;
-        };
-    }
-
-    interface RickAndMortyResponse {
-        info: {
-            count: number;
-            pages: number;
-            next: string | null;
-            prev: string | null;
-        };
-        results: Character[];
-    }
+    const numbers = useMemo(() => [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], []);
+    const doubleNumbers = useMemo(() => numbers.map(number => number * 2), [numbers]);
+    const newWords = useMemo(() => ['hello', 'world', 'foo', 'bar', 'foobar', 'fizz', 'buzz', 'fizzbuzz'].filter(word => word.length > 5), []);
+    const sumOfNumbers = useMemo(() => numbers.reduce((acc, curr) => acc + curr, 0), [numbers]);
+    const firstNumberGreaterThenTen = useMemo(() => numbers.find(number => number > 10), [numbers]);
 
     const [rickAndMortyResponse, setRickAndMortyResponse] = useState<Character[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
+
+    const [totalCharacters, setTotalCharacters] = useState(0);
+    const [aliveCharacters, setAliveCharacters] = useState(0);
 
     useEffect(() => {
-        fetch('https://rickandmortyapi.com/api/character')
-            .then((response) => response.json() as Promise<RickAndMortyResponse>)
-            .then((data) => data.results.filter((character) => character.status === 'Alive'))
-            .then((aliveCharacters) => setRickAndMortyResponse(aliveCharacters));
+        fetchAllCharacters()
+            .then(characters => {
+                setRickAndMortyResponse(characters);
+                setTotalCharacters(characters.length);
+                setAliveCharacters(characters.filter(character => character.status === 'Alive').length);
+                setIsLoading(false);
+            })
+            .catch(err => {
+                setError(err);
+                setIsLoading(false);
+            });
     }, []);
 
-    const getLivingHumans = (characters: Character[]): Character[] => {
-        return characters.filter((character) => character.status === 'Alive' && character.species === 'Human');
+    if (error) {
+        return <div>Error: {error.message}</div>;
     }
 
-    console.log(getLivingHumans(rickAndMortyResponse));
-
-    const getSpecialObjects = (characters: Character[]): { name: string, origin: string }[] => {
-        return characters.map((character) => ({
-            name: character.name,
-            origin: character.origin.name,
-        }));
+    if (isLoading) {
+        return <div>Loading...</div>;
     }
-
-    console.log(getSpecialObjects(rickAndMortyResponse));
-
 
     return (
         <>
@@ -72,26 +50,58 @@ function App() {
             <h1>{newWords}</h1>
             <h1>{sumOfNumbers}</h1>
             <h1>{firstNumberGreaterThenTen}</h1>
-            <table>
-                <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Species</th>
-                </tr>
-                </thead>
-                <tbody>
-                {rickAndMortyResponse.map((character:Character) => (
-                    <tr key={character.id}>
-                        <td>{character.name}</td>
-                        <td>{character.status}</td>
-                        <td>{character.species}</td>
-                    </tr>
-                ))}
-                </tbody>
-            </table>
+            <h1>Total Characters: {totalCharacters}</h1>
+            <h1>Alive Characters: {aliveCharacters}</h1>
+            <CharacterTable characters={rickAndMortyResponse.filter(character => character.status === 'Alive')} />
         </>
-    )
+    );
 }
 
-export default App
+function CharacterTable({ characters }: { characters: Character[] }) {
+    return (
+        <table>
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Species</th>
+            </tr>
+            </thead>
+            <tbody>
+            {characters.map(character => (
+                <tr key={character.id}>
+                    <td>{character.name}</td>
+                    <td>{character.status}</td>
+                    <td>{character.species}</td>
+                </tr>
+            ))}
+            </tbody>
+        </table>
+    );
+}
+
+async function fetchAllCharacters() {
+    try {
+        const firstPageResponse = await fetch('https://rickandmortyapi.com/api/character');
+        if (!firstPageResponse.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const firstPageData = await firstPageResponse.json();
+        const totalPages = firstPageData.info.pages;
+
+        const promises = [];
+        for (let i = 2; i <= totalPages; i++) {
+            promises.push(fetch(`https://rickandmortyapi.com/api/character/?page=${i}`).then(res => res.json()));
+        }
+
+        const pages = await Promise.all(promises);
+        const allCharacters = [firstPageData.results, ...pages.map(page => page.results)].flat();
+
+        return allCharacters;
+    } catch (error) {
+        console.error('Error fetching characters:', error);
+        throw error;
+    }
+}
+
+export default App;
